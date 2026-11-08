@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Letter Centerer</title>
+<meta name="description" content="Place any PDF at true size, centered on US Letter pages. Runs entirely in your browser.">
+<style>
+  :root {
+    --bg: #f6f5f2;
+    --card: #ffffff;
+    --text: #1d1d1f;
+    --muted: #6b6b70;
+    --border: #dcdad5;
+    --accent: #2f5bea;
+    --accent-text: #ffffff;
+    --warn-bg: #fff4e0;
+    --warn-text: #7a4b00;
+    --ok-text: #1f7a3a;
+    --drop: #eef2fe;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161618;
+      --card: #202023;
+      --text: #ececee;
+      --muted: #9a9aa2;
+      --border: #38383d;
+      --accent: #6d8dff;
+      --accent-text: #0d0d10;
+      --warn-bg: #3a2c12;
+      --warn-text: #ffcf80;
+      --ok-text: #6fd08c;
+      --drop: #232a40;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161618; --card: #202023; --text: #ececee; --muted: #9a9aa2; --border: #38383d;
+    --accent: #6d8dff; --accent-text: #0d0d10; --warn-bg: #3a2c12; --warn-text: #ffcf80;
+    --ok-text: #6fd08c; --drop: #232a40;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 64px; }
+  h1 { font-size: 1.75rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  #drop {
+    display: block;
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 36px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  #drop:hover, #drop.over { background: var(--drop); border-color: var(--accent); }
+  #drop strong { display: block; font-size: 1.1rem; margin-bottom: 4px; }
+  #drop span { color: var(--muted); font-size: .95rem; }
+  #file { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .hidden { display: none !important; }
+  .filename { font-weight: 600; word-break: break-all; margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  .tablewrap { max-height: 260px; overflow: auto; margin-bottom: 16px; }
+  .fit { color: var(--ok-text); }
+  .over { color: var(--warn-text); font-weight: 600; }
+  .warn {
+    background: var(--warn-bg);
+    color: var(--warn-text);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-size: .95rem;
+  }
+  fieldset { border: 0; padding: 0; margin: 0 0 16px; }
+  legend { font-weight: 600; margin-bottom: 6px; padding: 0; }
+  label.opt { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; cursor: pointer; }
+  label.opt input { margin-top: 4px; }
+  label.opt small { display: block; color: var(--muted); }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  button, a.btn {
+    font: inherit;
+    border-radius: 8px;
+    padding: 10px 18px;
+    cursor: pointer;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+  }
+  button.primary, a.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button:disabled { opacity: .5; cursor: default; }
+  #preview { width: 100%; height: 70vh; min-height: 420px; border: 1px solid var(--border); border-radius: 8px; background: #888; }
+  .error { color: #c62828; font-weight: 600; }
+  .note { color: var(--muted); font-size: .9rem; }
+  footer { color: var(--muted); font-size: .85rem; margin-top: 32px; }
+  footer p { margin: 4px 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PDF Letter Centerer</h1>
+  <p class="sub">Puts every page of your PDF at its true physical size, centered on a US Letter (8.5 × 11 in) page. Your file never leaves your computer — everything runs in this browser tab.</p>
+
+  <div class="card">
+    <label id="drop" for="file">
+      <strong>Drop a PDF here or click to choose</strong>
+      <span>Multi-page PDFs are fine — each page gets its own letter page.</span>
+    </label>
+    <input type="file" id="file" accept="application/pdf,.pdf">
+    <p id="loadError" class="error hidden"></p>
+  </div>
+
+  <div id="options" class="card hidden">
+    <p class="filename" id="fname"></p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Page</th><th>Original size</th><th>Placed on</th><th>Fits?</th></tr></thead>
+        <tbody id="pages"></tbody>
+      </table>
+    </div>
+
+    <div id="oversizeBox" class="hidden">
+      <div class="warn" id="oversizeMsg"></div>
+      <fieldset>
+        <legend>Pages larger than letter</legend>
+        <label class="opt"><input type="radio" name="oversize" value="clip" checked>
+          <span>Keep real size<small>Stays 100% scale; anything past the page edge is cut off.</small></span></label>
+        <label class="opt"><input type="radio" name="oversize" value="shrink">
+          <span>Shrink to fit<small>Only the oversized pages are scaled down. Pages that fit stay real size.</small></span></label>
+      </fieldset>
+    </div>
+
+    <div class="actions">
+      <button id="make" class="primary">Create letter PDF</button>
+      <button id="reset">Choose another file</button>
+    </div>
+  </div>
+
+  <div id="result" class="card hidden">
+    <div class="actions" style="margin-bottom:12px">
+      <a id="download" class="btn primary" download>Download PDF</a>
+    </div>
+    <p class="note">When printing, choose <strong>“Actual size”</strong> (or 100% scale), not “Fit to page”, or your printer will resize it.</p>
+    <iframe id="preview" title="Preview of the letter PDF"></iframe>
+  </div>
+
+  <footer>
+    <p>Orientation is picked per page: wide pages go on landscape letter, tall pages on portrait.</p>
+    <p>Free and open source. No uploads, no tracking.</p>
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+(() => {
+  const { PDFDocument, degrees } = PDFLib;
+  const LETTER_W = 612, LETTER_H = 792; // points (72 per inch)
+  const EPS = 0.5; // half a point tolerance
+
+  const $ = (id) => document.getElementById(id);
+  let srcBytes = null, srcName = '', pageInfo = [], outUrl = null;
+
+  const inches = (pt) => (pt / 72).toFixed(2).replace(/\.?0+$/, '');
+
+  // Read each page's visible box (CropBox) and rotation.
+  function describePages(doc) {
+    return doc.getPages().map((page, i) => {
+      const box = page.getCropBox();
+      const rot = ((page.getRotation().angle % 360) + 360) % 360;
+      const quarter = rot === 90 || rot === 270;
+      const w = quarter ? box.height : box.width;   // displayed width
+      const h = quarter ? box.width : box.height;   // displayed height
+      const landscape = w > h;
+      const sheetW = landscape ? LETTER_H : LETTER_W;
+      const sheetH = landscape ? LETTER_W : LETTER_H;
+      const fits = w <= sheetW + EPS && h <= sheetH + EPS;
+      return { index: i, box, rot, w, h, landscape, sheetW, sheetH, fits };
+    });
+  }
+
+  async function loadFile(file) {
+    $('loadError').classList.add('hidden');
+    $('result').classList.add('hidden');
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+      srcBytes = bytes;
+      srcName = file.name || 'document.pdf';
+      pageInfo = describePages(doc);
+      showOptions();
+    } catch (e) {
+      console.error(e);
+      showError('Couldn’t read that file. Make sure it’s a PDF and isn’t password-protected.');
+    }
+  }
+
+  function showError(msg) {
+    $('loadError').textContent = msg;
+    $('loadError').classList.remove('hidden');
+    $('options').classList.add('hidden');
+  }
+
+  function showOptions() {
+    $('fname').textContent = srcName + ' — ' + pageInfo.length + (pageInfo.length === 1 ? ' page' : ' pages');
+    const rows = pageInfo.map(p => `<tr>
+      <td>${p.index + 1}</td>
+      <td>${inches(p.w)} × ${inches(p.h)} in</td>
+      <td>Letter ${p.landscape ? 'landscape' : 'portrait'}</td>
+      <td class="${p.fits ? 'fit' : 'over'}">${p.fits ? 'Yes' : 'Too big'}</td></tr>`).join('');
+    $('pages').innerHTML = rows;
+    const overCount = pageInfo.filter(p => !p.fits).length;
+    $('oversizeBox').classList.toggle('hidden', overCount === 0);
+    if (overCount) {
+      $('oversizeMsg').textContent = overCount === pageInfo.length
+        ? (overCount === 1 ? 'This page is' : 'All pages are') + ' larger than letter. Choose how to handle ' + (overCount === 1 ? 'it' : 'them') + ':'
+        : overCount + ' of ' + pageInfo.length + ' pages are larger than letter. Choose how to handle them:';
+    }
+    $('options').classList.remove('hidden');
+  }
+
+  // Build the output PDF. Exposed on window for testing.
+  async function buildLetterPdf(bytes, mode) {
+    const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    const info = describePages(src);
+    const out = await PDFDocument.create();
+    const srcPages = src.getPages();
+    const embedded = await out.embedPages(
+      srcPages,
+      info.map(p => ({ left: p.box.x, bottom: p.box.y, right: p.box.x + p.box.width, top: p.box.y + p.box.height }))
+    );
+
+    info.forEach((p, i) => {
+      const page = out.addPage([p.sheetW, p.sheetH]);
+      let s = 1;
+      if (!p.fits && mode === 'shrink') s = Math.min(p.sheetW / p.w, p.sheetH / p.h);
+      const ew = p.box.width * s, eh = p.box.height * s;   // embedded (unrotated) size
+      const dw = p.w * s, dh = p.h * s;                     // displayed size
+      const X = (p.sheetW - dw) / 2, Y = (p.sheetH - dh) / 2; // lower-left of displayed area
+      // PDF /Rotate is clockwise; pdf-lib rotate is counter-clockwise around (x, y).
+      let x = X, y = Y;
+      if (p.rot === 90)  { x = X;      y = Y + ew; }
+      if (p.rot === 180) { x = X + ew; y = Y + eh; }
+      if (p.rot === 270) { x = X + eh; y = Y; }
+      page.drawPage(embedded[i], { x, y, width: ew, height: eh, rotate: degrees(-p.rot) });
+    });
+    return out.save();
+  }
+  window.buildLetterPdf = buildLetterPdf;
+
+  async function make() {
+    const btn = $('make');
+    btn.disabled = true; btn.textContent = 'Working…';
+    try {
+      const mode = document.querySelector('input[name="oversize"]:checked').value;
+      const outBytes = await buildLetterPdf(srcBytes, mode);
+      if (outUrl) URL.revokeObjectURL(outUrl);
+      outUrl = URL.createObjectURL(new Blob([outBytes], { type: 'application/pdf' }));
+      const base = srcName.replace(/\.pdf$/i, '');
+      $('download').href = outUrl;
+      $('download').download = base + ' (letter).pdf';
+      $('preview').src = outUrl;
+      $('result').classList.remove('hidden');
+      $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+      console.error(e);
+      alert('Something went wrong creating the PDF: ' + e.message);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Create letter PDF';
+    }
+  }
+
+  function reset() {
+    srcBytes = null; pageInfo = [];
+    $('file').value = '';
+    $('options').classList.add('hidden');
+    $('result').classList.add('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  $('file').addEventListener('change', e => e.target.files[0] && loadFile(e.target.files[0]));
+  $('make').addEventListener('click', make);
+  $('reset').addEventListener('click', reset);
+  document.querySelectorAll('input[name="oversize"]').forEach(r =>
+    r.addEventListener('change', () => { if (!$('result').classList.contains('hidden')) make(); }));
+
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => {
+    const f = e.dataTransfer.files[0];
+    if (f) loadFile(f);
+  });
+  // Allow dropping anywhere on the page without the browser opening the file.
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => e.preventDefault());
+})();
+</script>
+</body>
+</html>
